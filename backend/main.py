@@ -179,7 +179,8 @@ def get_query_plan(
         )
         return QueryPlan.model_validate(result)
     except Exception as exc:
-        raise RuntimeError("Gemma planner returned an invalid plan.") from exc
+        print(f"Gemma planner failure: {type(exc).__name__}: {exc}")
+        raise RuntimeError(str(exc) or "Gemma planner failed.") from exc
 
 
 def execute_query(sql: str) -> dict[str, Any]:
@@ -443,9 +444,20 @@ def query_data(request: QueryRequest):
         raise
     except RuntimeError as exc:
         print(f"Query planner error: {exc}")
+        message = str(exc)
+        if any(
+            marker in message
+            for marker in ("429", "500", "502", "503", "504", "UNAVAILABLE")
+        ):
+            detail = (
+                "Gemma is temporarily unavailable at Google. "
+                "Please retry in a few seconds."
+            )
+        else:
+            detail = "The Gemma query planner is not available. Check the backend configuration."
         raise HTTPException(
             status_code=503,
-            detail="The Gemma query planner is not available.",
+            detail=detail,
         ) from exc
 
     if plan.status == "unsupported":

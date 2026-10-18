@@ -2,6 +2,7 @@
 
 import json
 import os
+import time
 from typing import Any
 
 from google import genai
@@ -60,14 +61,30 @@ def plan_query(
 
     model = os.getenv("GEMMA_MODEL", "gemma-3-27b-it").strip()
     client = genai.Client(api_key=api_key)
-    response = client.models.generate_content(
-        model=model,
-        contents=_planner_prompt(question, schema_context),
-        config=types.GenerateContentConfig(
-            temperature=0,
-            response_mime_type="application/json",
-        ),
-    )
+    attempts = max(1, int(os.getenv("GEMMA_SDK_RETRIES", "2")))
+    try:
+        for attempt in range(attempts):
+            try:
+                response = client.models.generate_content(
+                    model=model,
+                    contents=_planner_prompt(question, schema_context),
+                    config=types.GenerateContentConfig(
+                        temperature=0,
+                        response_mime_type="application/json",
+                    ),
+                )
+                break
+            except Exception as exc:
+                message = str(exc)
+                retryable = any(
+                    marker in message
+                    for marker in ("429", "500", "502", "503", "504", "UNAVAILABLE")
+                )
+                if not retryable or attempt == attempts - 1:
+                    raise
+                time.sleep(float(os.getenv("GEMMA_SDK_RETRY_DELAY", "2")))
+    finally:
+        client.close()
 
     text = (response.text or "").strip()
     if not text:
