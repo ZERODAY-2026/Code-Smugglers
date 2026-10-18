@@ -5,3 +5,5 @@ python-dotenv
 sqlglot
 pydantic
 google-genai
+pytest
+ucimlrepo

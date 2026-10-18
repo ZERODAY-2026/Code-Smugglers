@@ -13,21 +13,19 @@ def _planner_prompt(
     schema_context: list[dict[str, str]],
 ) -> str:
     schema_text = "\n".join(
-        f"- {item['table']}.{item['column']} ({item['data_type']})"
+        f"- {item['qualified_table']}.{item['column']} ({item['data_type']})"
         for item in schema_context
     )
+    dataset_name = schema_context[0]["qualified_table"].rsplit(".", 1)[0]
     return f"""
 You are the query-planning component of DataMind.
 You may propose SQL, but you must never calculate, guess, or return result
 rows or numeric answers. Snowflake is the only source of truth for values.
 
-The backend allows only one read-only SELECT query against these fully
-qualified approved objects:
-- DATAMIND.BANK_MARKETING.BANK_MARKETING
-- SNOWFLAKE_SAMPLE_DATA.TPCH_SF1 tables when present in the supplied schema
+The backend allows one read-only SELECT query against the active dataset:
+{dataset_name}
 
 Use only columns in the supplied schema. Use the exact table and column names.
-The source column DEFAULT_VALUE represents the original UCI field "default".
 Return JSON only with this shape:
 {{
   "sql": "SELECT ... or null",

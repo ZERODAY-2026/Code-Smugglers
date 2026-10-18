@@ -16,45 +16,50 @@ The backend currently provides:
 - `POST /api/query` - calls the configured Gemma planner, validates its SQL,
   executes it in Snowflake, and returns actual rows as evidence.
 
-The SQL policy only permits one read-only query against fully qualified tables
-in the approved TPC-H schema or Bank Marketing table:
-
-```text
-SNOWFLAKE_SAMPLE_DATA.TPCH_SF1.CUSTOMER
-SNOWFLAKE_SAMPLE_DATA.TPCH_SF1.ORDERS
-SNOWFLAKE_SAMPLE_DATA.TPCH_SF1.LINEITEM
-SNOWFLAKE_SAMPLE_DATA.TPCH_SF1.PART
-SNOWFLAKE_SAMPLE_DATA.TPCH_SF1.PARTSUPP
-SNOWFLAKE_SAMPLE_DATA.TPCH_SF1.SUPPLIER
-SNOWFLAKE_SAMPLE_DATA.TPCH_SF1.NATION
-SNOWFLAKE_SAMPLE_DATA.TPCH_SF1.REGION
-DATAMIND.BANK_MARKETING.BANK_MARKETING
-```
+The SQL policy only permits one read-only query against fully qualified
+tables in the active dataset selected by `DATAMIND_DATASET`.
 
 ## Local setup
 
-Create a `.env` file in the project root. Keep it out of Git:
+Create a `.env` file in the project root. Keep it out of Git. Select either
+supported dataset without changing Python code:
 
 ```dotenv
 SNOWFLAKE_ACCOUNT=
 SNOWFLAKE_USER=
 SNOWFLAKE_WAREHOUSE=
-SNOWFLAKE_DATABASE=SNOWFLAKE_SAMPLE_DATA
-SNOWFLAKE_SCHEMA=TPCH_SF1
+SNOWFLAKE_DATABASE=DATAMIND
+SNOWFLAKE_SCHEMA=BANK_MARKETING
 SNOWFLAKE_AUTHENTICATOR=OAUTH_AUTHORIZATION_CODE
+DATAMIND_DATASET=bank_marketing
 ```
 
 Install the backend dependencies in the virtual environment, then start the
 API:
 
 ```powershell
-python -m uvicorn backend.main:app --reload
+D:\Projects\Hackobter\datamind\.venv\Scripts\python.exe -m pip install -r requirements.txt
+D:\Projects\Hackobter\datamind\.venv\Scripts\python.exe -m uvicorn backend.main:app --reload
 ```
 
-The next integration step is to connect the team's Gemma planner to a
-schema-aware `POST /api/query` flow. Gemma must propose a query or request
-clarification; the backend will validate and execute only approved SQL and
-return actual Snowflake evidence.
+The same schema-aware `POST /api/query` flow works for both datasets. The
+backend discovers the active Snowflake schema, asks Gemma for a SQL proposal,
+validates it against only the active dataset, and returns actual Snowflake
+evidence.
+
+To switch to TPC-H, use:
+
+```dotenv
+DATAMIND_DATASET=tpch
+SNOWFLAKE_DATABASE=SNOWFLAKE_SAMPLE_DATA
+SNOWFLAKE_SCHEMA=TPCH_SF1
+```
+
+The registry is defined in
+[`backend/dataset_registry.py`](D:/Projects/Hackobter/datamind/backend/dataset_registry.py).
+It controls the active Snowflake connection, schema discovery, SQL allowlist,
+and dataset context supplied to Gemma. Adding another dataset means adding a
+registry entry rather than changing the query endpoint.
 
 The included Google AI Studio planner exposes a function matching
 [`backend/planner_contract.py`](D:/Projects/Hackobter/datamind/backend/planner_contract.py)
@@ -106,3 +111,29 @@ Restart FastAPI and verify `/api/schema` before connecting Gemma. Gemma must
 receive that live schema and propose SQL only; the backend validates the SQL,
 Snowflake computes the result, and the response exposes the actual returned
 rows as evidence.
+
+For a clean UCI download without requiring a browser login, the optional
+`ucimlrepo` dependency can fetch dataset 222:
+
+```python
+from ucimlrepo import fetch_ucirepo
+
+bank_marketing = fetch_ucirepo(id=222)
+print(bank_marketing.metadata.num_instances)
+print(bank_marketing.data.original)
+```
+
+`ucimlrepo` is only for reproducible source acquisition or tests. The
+application still uses Snowflake as its analytics source and never calculates
+API answers from the downloaded dataframe.
+
+## Reuse tests
+
+Run the configuration and SQL-policy tests with:
+
+```powershell
+D:\Projects\Hackobter\datamind\.venv\Scripts\python.exe -m pytest tests -q
+```
+
+The tests switch between `bank_marketing` and `tpch` using configuration and
+verify that a query from one dataset cannot access the other dataset.

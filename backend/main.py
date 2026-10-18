@@ -12,33 +12,13 @@ from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
 
+from backend.dataset_registry import get_active_dataset
+
 load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 
 app = FastAPI(title="DataMind Backend")
 
 
-ALLOWED_TABLES = {
-    "CUSTOMER",
-    "ORDERS",
-    "LINEITEM",
-    "PART",
-    "PARTSUPP",
-    "SUPPLIER",
-    "NATION",
-    "REGION",
-}
-ALLOWED_DATABASE = "SNOWFLAKE_SAMPLE_DATA"
-ALLOWED_SCHEMA = "TPCH_SF1"
-ALLOWED_OBJECTS = {
-    (
-        ALLOWED_DATABASE,
-        ALLOWED_SCHEMA,
-    ): ALLOWED_TABLES,
-    (
-        "DATAMIND",
-        "BANK_MARKETING",
-    ): {"BANK_MARKETING"},
-}
 MAX_QUESTION_LENGTH = 2000
 MAX_RESULT_ROWS = 500
 
@@ -46,6 +26,7 @@ MAX_RESULT_ROWS = 500
 def validate_sql(sql: str) -> str:
     """Validate that SQL contains one read-only query on allowed tables."""
 
+    dataset = get_active_dataset()
     try:
         statements = [
             statement
@@ -96,7 +77,7 @@ def validate_sql(sql: str) -> str:
             table.catalog.upper() if table.catalog else "",
             table.db.upper() if table.db else "",
         )
-        allowed_tables = ALLOWED_OBJECTS.get(object_key)
+        allowed_tables = dataset.objects.get(object_key)
 
         if not allowed_tables or table_name not in allowed_tables:
             raise ValueError(f"Table is not allowed: {table.name}")
@@ -111,12 +92,13 @@ def validate_sql(sql: str) -> str:
 
 
 def get_connection():
+    dataset = get_active_dataset()
     connection_options = {
         "account": os.environ["SNOWFLAKE_ACCOUNT"],
         "user": os.environ["SNOWFLAKE_USER"],
         "warehouse": os.environ["SNOWFLAKE_WAREHOUSE"],
-        "database": os.environ["SNOWFLAKE_DATABASE"],
-        "schema": os.environ["SNOWFLAKE_SCHEMA"],
+        "database": dataset.database,
+        "schema": dataset.schema,
         "authenticator": os.getenv(
             "SNOWFLAKE_AUTHENTICATOR", "externalbrowser"
         ),
@@ -232,26 +214,20 @@ def health():
 def discover_schema():
     """Return columns from the configured Snowflake schema."""
 
-    database = os.getenv("SNOWFLAKE_DATABASE", "").strip()
-    schema = os.getenv("SNOWFLAKE_SCHEMA", "").strip()
+    try:
+        dataset = get_active_dataset()
+    except ValueError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
 
-    if not database or not schema:
-        raise HTTPException(
-            status_code=503,
-            detail="Snowflake database and schema are not configured.",
-        )
+    database = dataset.database
+    schema = dataset.schema
 
     connection = None
     try:
         connection = get_connection()
         database_sql = quote_identifier(database)
 
-        allowed_tables = ALLOWED_OBJECTS.get(
-            (database.upper(), schema.upper()),
-            set(),
-        )
-        if not allowed_tables:
-            raise ValueError("The configured database and schema are not allowlisted.")
+        allowed_tables = dataset.tables
 
         query = (
             f"SELECT TABLE_NAME, COLUMN_NAME, DATA_TYPE "
@@ -275,6 +251,9 @@ def discover_schema():
                 "table": row[0],
                 "column": row[1],
                 "data_type": row[2],
+                "qualified_table": (
+                    f"{database}.{schema}.{row[0]}"
+                ),
             }
             for row in rows
         ]
@@ -283,6 +262,8 @@ def discover_schema():
             "status": "ok",
             "database": database,
             "schema": schema,
+            "dataset": dataset.key,
+            "dataset_description": dataset.description,
             "columns": columns,
         }
     except HTTPException:
@@ -333,25 +314,23 @@ def test_query():
     connection = None
 
     try:
+        dataset = get_active_dataset()
+        table = sorted(dataset.tables)[0]
+        table_sql = ".".join(
+            quote_identifier(value)
+            for value in (dataset.database, dataset.schema, table)
+        )
         connection = get_connection()
 
         with connection.cursor() as cursor:
-            cursor.execute("""
-                SELECT
-                    C_CUSTKEY,
-                    C_NAME,
-                    C_ACCTBAL,
-                    C_MKTSEGMENT
-                FROM SNOWFLAKE_SAMPLE_DATA.TPCH_SF1.CUSTOMER
-                ORDER BY C_ACCTBAL DESC
-                LIMIT 5
-            """)
+            cursor.execute(f"SELECT * FROM {table_sql} LIMIT 5")
 
             columns = [item[0] for item in cursor.description]
             rows = cursor.fetchall()
 
         return {
             "status": "ok",
+            "dataset": dataset.key,
             "columns": columns,
             "rows": [list(row) for row in rows],
             "row_count": len(rows)
