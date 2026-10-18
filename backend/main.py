@@ -26,6 +26,16 @@ ALLOWED_TABLES = {
 }
 ALLOWED_DATABASE = "SNOWFLAKE_SAMPLE_DATA"
 ALLOWED_SCHEMA = "TPCH_SF1"
+ALLOWED_OBJECTS = {
+    (
+        ALLOWED_DATABASE,
+        ALLOWED_SCHEMA,
+    ): ALLOWED_TABLES,
+    (
+        "DATAMIND",
+        "BANK_MARKETING",
+    ): {"BANK_MARKETING"},
+}
 
 
 def validate_sql(sql: str) -> str:
@@ -77,20 +87,20 @@ def validate_sql(sql: str) -> str:
         if table_name in cte_names and not table.db and not table.catalog:
             continue
 
-        if table_name not in ALLOWED_TABLES:
+        object_key = (
+            table.catalog.upper() if table.catalog else "",
+            table.db.upper() if table.db else "",
+        )
+        allowed_tables = ALLOWED_OBJECTS.get(object_key)
+
+        if not allowed_tables or table_name not in allowed_tables:
             raise ValueError(f"Table is not allowed: {table.name}")
 
         if not table.db or not table.catalog:
             raise ValueError(
-                "Tables must use the fully qualified "
-                "SNOWFLAKE_SAMPLE_DATA.TPCH_SF1 format."
+                "Tables must use a fully qualified approved database.schema.table "
+                "name."
             )
-
-        if table.db.upper() != ALLOWED_SCHEMA:
-            raise ValueError(f"Only the {ALLOWED_SCHEMA} schema is allowed.")
-
-        if table.catalog.upper() != ALLOWED_DATABASE:
-            raise ValueError(f"Only {ALLOWED_DATABASE} is allowed.")
 
     return tree.sql(dialect="snowflake")
 
@@ -151,6 +161,13 @@ def discover_schema():
         connection = get_connection()
         database_sql = quote_identifier(database)
 
+        allowed_tables = ALLOWED_OBJECTS.get(
+            (database.upper(), schema.upper()),
+            set(),
+        )
+        if not allowed_tables:
+            raise ValueError("The configured database and schema are not allowlisted.")
+
         query = (
             f"SELECT TABLE_NAME, COLUMN_NAME, DATA_TYPE "
             f"FROM {database_sql}.INFORMATION_SCHEMA.COLUMNS "
@@ -158,13 +175,13 @@ def discover_schema():
             "AND TABLE_NAME IN (%s) "
             "ORDER BY TABLE_NAME, ORDINAL_POSITION"
         )
-        table_parameters = ", ".join(["%s"] * len(ALLOWED_TABLES))
+        table_parameters = ", ".join(["%s"] * len(allowed_tables))
         query = query.replace("(%s)", f"({table_parameters})")
 
         with connection.cursor() as cursor:
             cursor.execute(
                 query,
-                (schema, *sorted(ALLOWED_TABLES)),
+                (schema, *sorted(allowed_tables)),
             )
             rows = cursor.fetchall()
 
@@ -284,6 +301,11 @@ def test_validator():
             "WITH high_balance AS ("
             "SELECT C_NAME FROM SNOWFLAKE_SAMPLE_DATA.TPCH_SF1.CUSTOMER "
             "WHERE C_ACCTBAL > 1000) SELECT C_NAME FROM high_balance",
+        ),
+        (
+            "Safe Bank Marketing",
+            "SELECT Y, COUNT(*) AS CUSTOMERS "
+            "FROM DATAMIND.BANK_MARKETING.BANK_MARKETING GROUP BY Y",
         ),
         (
             "Blocked unqualified table",

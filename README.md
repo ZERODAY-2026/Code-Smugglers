@@ -52,3 +52,38 @@ The next integration step is to connect the team's Gemma planner to a
 schema-aware `POST /api/query` flow. Gemma must propose a query or request
 clarification; the backend will validate and execute only approved SQL and
 return actual Snowflake evidence.
+
+## Bank Marketing demo dataset
+
+The canonical demo source is the UCI `bank-full.csv` file under
+[`datasets/bank/`](D:/Projects/Hackobter/datamind/datasets/bank/). The raw
+download is ignored by Git. Load it into Snowflake with:
+
+```powershell
+python scripts/load_bank_marketing.py
+```
+
+The loader creates `DATAMIND.BANK_MARKETING.BANK_MARKETING`, copies the
+semicolon-delimited source file with Snowflake's `PUT` and `COPY INTO`, and
+verifies the loaded row count. It performs no local analytics and does not
+generate values.
+
+The load has been verified in Snowflake with exactly 45,211 rows. A grouping
+query against the Snowflake table also returned the source-backed counts
+`no = 39,922` and `yes = 5,289`. These values are not hard-coded into the
+application.
+
+If you run the loader yourself, set these local `.env` values so `/api/schema`
+describes the Bank Marketing table:
+
+```dotenv
+DATAMIND_DATABASE=DATAMIND
+DATAMIND_SCHEMA=BANK_MARKETING
+SNOWFLAKE_DATABASE=DATAMIND
+SNOWFLAKE_SCHEMA=BANK_MARKETING
+```
+
+Restart FastAPI and verify `/api/schema` before connecting Gemma. Gemma must
+receive that live schema and propose SQL only; the backend validates the SQL,
+Snowflake computes the result, and the response exposes the actual returned
+rows as evidence.
