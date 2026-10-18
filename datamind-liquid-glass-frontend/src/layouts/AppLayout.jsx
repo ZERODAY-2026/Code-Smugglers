@@ -36,10 +36,10 @@ export default function AppLayout() {
     { label: 'Data sources', icon: Database, path: '/sources' }
   ];
   const activeNav = (navItems.find((n) => n.path === location.pathname) || navItems[0]).label;
-  const staticPage = ['/ask', '/live', '/history', '/sources'].includes(location.pathname);
+  const staticPage = ['/', '/ask', '/live', '/history', '/sources'].includes(location.pathname);
 
   return (
-    <div className="app-shell">
+    <div className={`app-shell ${location.pathname === '/' ? 'overview-static' : ''}`}>
       <div className="ambient ambient-one" /><div className="ambient ambient-two" />
       <motion.aside initial={{ x: -28, opacity: 0 }} animate={{ x: 0, opacity: 1 }} transition={{ duration: .65, ease: [.2, .7, .2, 1] }} className={`sidebar ${mobileNav ? 'mobile-open' : ''}`}>
         <div className="sidebar-top"><Logo /><button className="icon-button mobile-close" onClick={() => setMobileNav(false)} aria-label="Close menu"><X size={18} /></button></div>
