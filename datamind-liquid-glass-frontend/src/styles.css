@@ -30,3 +30,6 @@
 .overview-static .liquid-bg * {
   animation: none !important;
 }
+.overview-static .query-hero .spin {
+  animation: spin .8s linear infinite !important;
+}
