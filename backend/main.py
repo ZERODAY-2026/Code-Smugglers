@@ -24,6 +24,8 @@ ALLOWED_TABLES = {
     "NATION",
     "REGION",
 }
+ALLOWED_DATABASE = "SNOWFLAKE_SAMPLE_DATA"
+ALLOWED_SCHEMA = "TPCH_SF1"
 
 
 def validate_sql(sql: str) -> str:
@@ -47,19 +49,48 @@ def validate_sql(sql: str) -> str:
         raise ValueError("Only SELECT queries are allowed.")
 
     for node in tree.walk():
-        if isinstance(node, (exp.Insert, exp.Update, exp.Delete, exp.Drop,
-                             exp.Create, exp.Alter, exp.Command)):
+        if isinstance(
+            node,
+            (
+                exp.Insert,
+                exp.Update,
+                exp.Delete,
+                exp.Drop,
+                exp.Create,
+                exp.Alter,
+                exp.Command,
+                exp.Merge,
+                exp.TruncateTable,
+            ),
+        ):
             raise ValueError("Only read-only SQL is allowed.")
 
+    cte_names = {
+        cte.alias_or_name.upper()
+        for cte in tree.find_all(exp.CTE)
+        if cte.alias_or_name
+    }
+
     for table in tree.find_all(exp.Table):
-        if table.name.upper() not in ALLOWED_TABLES:
+        table_name = table.name.upper()
+
+        if table_name in cte_names and not table.db and not table.catalog:
+            continue
+
+        if table_name not in ALLOWED_TABLES:
             raise ValueError(f"Table is not allowed: {table.name}")
 
-        if table.db and table.db.upper() != "TPCH_SF1":
-            raise ValueError("Only the TPCH_SF1 schema is allowed.")
+        if not table.db or not table.catalog:
+            raise ValueError(
+                "Tables must use the fully qualified "
+                "SNOWFLAKE_SAMPLE_DATA.TPCH_SF1 format."
+            )
 
-        if table.catalog and table.catalog.upper() != "SNOWFLAKE_SAMPLE_DATA":
-            raise ValueError("Only SNOWFLAKE_SAMPLE_DATA is allowed.")
+        if table.db.upper() != ALLOWED_SCHEMA:
+            raise ValueError(f"Only the {ALLOWED_SCHEMA} schema is allowed.")
+
+        if table.catalog.upper() != ALLOWED_DATABASE:
+            raise ValueError(f"Only {ALLOWED_DATABASE} is allowed.")
 
     return tree.sql(dialect="snowflake")
 
@@ -77,6 +108,15 @@ def get_connection():
     )
 
 
+def quote_identifier(identifier: str) -> str:
+    """Quote a Snowflake identifier after rejecting empty values."""
+
+    if not identifier or not identifier.strip():
+        raise ValueError("Snowflake identifiers cannot be empty.")
+
+    return '"' + identifier.replace('"', '""') + '"'
+
+
 @app.get("/")
 def home():
     return {
@@ -91,6 +131,69 @@ def health():
         "status": "ok",
         "service": "DataMind Backend",
     }
+
+
+@app.get("/api/schema")
+def discover_schema():
+    """Return columns from the configured Snowflake schema."""
+
+    database = os.getenv("SNOWFLAKE_DATABASE", "").strip()
+    schema = os.getenv("SNOWFLAKE_SCHEMA", "").strip()
+
+    if not database or not schema:
+        raise HTTPException(
+            status_code=503,
+            detail="Snowflake database and schema are not configured.",
+        )
+
+    connection = None
+    try:
+        connection = get_connection()
+        database_sql = quote_identifier(database)
+
+        query = (
+            f"SELECT TABLE_NAME, COLUMN_NAME, DATA_TYPE "
+            f"FROM {database_sql}.INFORMATION_SCHEMA.COLUMNS "
+            "WHERE TABLE_SCHEMA = %s "
+            "AND TABLE_NAME IN (%s) "
+            "ORDER BY TABLE_NAME, ORDINAL_POSITION"
+        )
+        table_parameters = ", ".join(["%s"] * len(ALLOWED_TABLES))
+        query = query.replace("(%s)", f"({table_parameters})")
+
+        with connection.cursor() as cursor:
+            cursor.execute(
+                query,
+                (schema, *sorted(ALLOWED_TABLES)),
+            )
+            rows = cursor.fetchall()
+
+        columns = [
+            {
+                "table": row[0],
+                "column": row[1],
+                "data_type": row[2],
+            }
+            for row in rows
+        ]
+
+        return {
+            "status": "ok",
+            "database": database,
+            "schema": schema,
+            "columns": columns,
+        }
+    except HTTPException:
+        raise
+    except Exception as exc:
+        print(f"Schema discovery error: {type(exc).__name__}: {exc}")
+        raise HTTPException(
+            status_code=503,
+            detail="Schema discovery failed. Check configuration and permissions.",
+        )
+    finally:
+        if connection is not None:
+            connection.close()
 
 
 @app.get("/api/test-snowflake")
@@ -167,10 +270,33 @@ def test_query():
 @app.get("/api/test-validator")
 def test_validator():
     test_cases = [
-        ("Safe SELECT", "SELECT C_NAME FROM CUSTOMER LIMIT 5"),
-        ("Safe WHERE", "SELECT C_NAME FROM CUSTOMER WHERE C_ACCTBAL > 1000"),
-        ("Blocked DELETE", "DELETE FROM CUSTOMER"),
-        ("Blocked table", "SELECT * FROM SECRET_TABLE"),
+        (
+            "Safe SELECT",
+            "SELECT C_NAME FROM SNOWFLAKE_SAMPLE_DATA.TPCH_SF1.CUSTOMER LIMIT 5",
+        ),
+        (
+            "Safe WHERE",
+            "SELECT C_NAME FROM SNOWFLAKE_SAMPLE_DATA.TPCH_SF1.CUSTOMER "
+            "WHERE C_ACCTBAL > 1000",
+        ),
+        (
+            "Safe CTE",
+            "WITH high_balance AS ("
+            "SELECT C_NAME FROM SNOWFLAKE_SAMPLE_DATA.TPCH_SF1.CUSTOMER "
+            "WHERE C_ACCTBAL > 1000) SELECT C_NAME FROM high_balance",
+        ),
+        (
+            "Blocked unqualified table",
+            "SELECT * FROM CUSTOMER",
+        ),
+        (
+            "Blocked table",
+            "SELECT * FROM SNOWFLAKE_SAMPLE_DATA.TPCH_SF1.SECRET_TABLE",
+        ),
+        (
+            "Blocked DELETE",
+            "DELETE FROM SNOWFLAKE_SAMPLE_DATA.TPCH_SF1.CUSTOMER",
+        ),
         ("Blocked multiple statements", "SELECT 1; SELECT 2"),
     ]
 
