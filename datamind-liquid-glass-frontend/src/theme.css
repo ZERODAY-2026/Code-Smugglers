@@ -1,0 +1,11 @@
+:root,:root[data-theme=dark]{color-scheme:dark;--bg:#0b0b0b;--text:#ebe9e6;--fg:255,255,255;--surf:22,23,20;--muted:#8e8e87;--subtle:#a2a09e;--lime:#a7c52b;--lime-bright:#c0dc48;--limec:192,220,72;--limec2:167,197,43}
+:root[data-theme=light]{color-scheme:light;--bg:#f1f0ea;--text:#1a1b16;--fg:30,32,24;--surf:255,255,255;--muted:#6b6c64;--subtle:#55564f;--lime:#6f8a12;--lime-bright:#5d7410;--limec:93,116,16;--limec2:111,138,18}
+body{color:var(--text);transition:background-color .4s}
+:root[data-theme=light] body{background:radial-gradient(ellipse at 68% -10%,rgba(167,197,43,.22),transparent 45%),var(--bg)}
+:root[data-theme=light] .liquid-bg{opacity:.3}:root[data-theme=light] .ambient{opacity:.2}
+:root[data-theme=light] .glass-card{box-shadow:inset 0 1px rgba(255,255,255,.9),0 10px 34px rgba(60,70,20,.1)}
+:root[data-theme=light] .sidebar{background:rgba(255,255,255,.7);border-right-color:rgba(var(--fg),.08)}
+:root[data-theme=light] .liquid-cursor{border-color:rgba(var(--fg),.25);box-shadow:inset 0 1px 2px #fff,0 6px 20px rgba(60,70,20,.18)}
+:root[data-theme=light] .live-tile strong,:root[data-theme=light] .live-total{color:var(--text)}
+::view-transition-old(root),::view-transition-new(root){animation:none;mix-blend-mode:normal}::view-transition-new(root){z-index:2}::view-transition-old(root){z-index:1}
+.theme-toggle{overflow:hidden}

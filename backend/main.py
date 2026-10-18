@@ -10,6 +10,7 @@ from sqlglot import exp
 import snowflake.connector
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
 from backend.dataset_registry import get_active_dataset
@@ -17,6 +18,21 @@ from backend.dataset_registry import get_active_dataset
 load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 
 app = FastAPI(title="DataMind Backend")
+frontend_origins = [
+    origin.strip()
+    for origin in os.getenv(
+        "DATAMIND_FRONTEND_ORIGINS",
+        "http://127.0.0.1:5173,http://localhost:5173",
+    ).split(",")
+    if origin.strip()
+]
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=frontend_origins,
+    allow_credentials=False,
+    allow_methods=["GET", "POST", "OPTIONS"],
+    allow_headers=["Accept", "Content-Type"],
+)
 
 
 MAX_QUESTION_LENGTH = 2000
