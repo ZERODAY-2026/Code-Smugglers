@@ -33,3 +33,4 @@
 .overview-static .query-hero .spin {
   animation: spin .8s linear infinite !important;
 }
+.query-visualization{margin-top:16px;padding:18px 20px}.visualization-heading{display:flex;align-items:flex-start;justify-content:space-between;gap:16px}.visualization-heading h3{margin:8px 0 0;font-size:15px;font-weight:600}.visualization-heading>span{color:#777a70;font:9px var(--mono);padding-top:3px}.visualization-chart{height:220px;margin-top:8px}.visualization-chart .recharts-wrapper{font:10px var(--mono)}.visualization-chart .recharts-cartesian-axis-tick-value{fill:#85877b}.visualization-chart .recharts-cartesian-grid line{stroke:rgba(var(--fg),.08)}.visualization-chart .recharts-tooltip-wrapper{outline:none}.visualization-chart .recharts-default-tooltip{background:rgba(30,32,23,.96)!important;border:1px solid rgba(var(--fg),.12)!important;border-radius:8px}.visualization-chart .recharts-tooltip-label,.visualization-chart .recharts-tooltip-item{color:#e5e9d4!important}

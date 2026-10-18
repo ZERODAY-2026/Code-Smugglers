@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { AlertCircle, ArrowUp, CheckCircle2, Copy, Database, FileCode2, Info, RefreshCw, Sparkles } from 'lucide-react';
 import { LiquidCard } from '../components/liquid.jsx';
+import QueryVisualization from '../components/QueryVisualization.jsx';
 import { Head, Page } from '../components/PageKit.jsx';
 import { useData } from '../context/DataContext.jsx';
 
@@ -17,6 +18,7 @@ function ResultDetails({ result }) {
   return <div className="query-result-stack">
     <div className={`query-status-card ${tone}`}><div className="result-status-icon">{result.status === 'ok' ? <CheckCircle2 size={19} /> : <Info size={19} />}</div><div><b>{result.status === 'ok' ? result.answer : result.status === 'empty' ? 'No matching rows' : result.question}</b><p>{result.explanation}</p></div></div>
     {result.rows?.length > 0 && <LiquidCard animated={false} className="results-card"><div className="results-header"><div><div className="card-eyebrow">SNOWFLAKE RESULTS</div><h3>{result.rows.length} returned row{result.rows.length === 1 ? '' : 's'}</h3></div><button className="subtle-button" onClick={() => copy(JSON.stringify({ columns: result.columns, rows: result.rows }, null, 2))}><Copy size={14} /> Copy data</button></div><div className="table-scroll dynamic-result-table"><table><thead><tr>{result.columns.map((column) => <th key={column}>{column}</th>)}</tr></thead><tbody>{result.rows.map((row, rowIndex) => <tr key={rowIndex}>{result.columns.map((column, columnIndex) => <td key={`${column}-${rowIndex}`}>{formatValue(row[columnIndex])}</td>)}</tr>)}</tbody></table></div></LiquidCard>}
+    <QueryVisualization result={result} />
     {result.sql && <LiquidCard animated={false} className="sql-panel dynamic-sql-panel"><button className="sql-toggle" onClick={() => setShowSql((value) => !value)}><span><FileCode2 size={14} /> Generated SQL</span><span>{showSql ? 'Hide' : 'Show'}</span></button>{showSql && <div><pre>{result.sql}</pre><button className="subtle-button" onClick={() => copy(result.sql)}><Copy size={13} /> Copy SQL</button></div>}</LiquidCard>}
     {result.assumptions?.length > 0 && <div className="evidence-list"><b>Assumptions</b>{result.assumptions.map((text) => <p key={text}><Info size={13} />{text}</p>)}</div>}
     {result.warnings?.length > 0 && <div className="evidence-list warning-list"><b>Warnings</b>{result.warnings.map((text) => <p key={text}><AlertCircle size={13} />{text}</p>)}</div>}

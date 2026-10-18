@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { AlertCircle, ArrowRight, Database, LoaderCircle, MessageSquareText, RefreshCw, Sparkles, Table2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { LiquidCard } from '../components/liquid.jsx';
+import QueryVisualization from '../components/QueryVisualization.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useData } from '../context/DataContext.jsx';
 
@@ -38,6 +39,7 @@ export default function Overview() {
     {(schemaError || error) && <div className="inline-error"><AlertCircle size={15} />{error || schemaError}<button className="subtle-button" onClick={() => refreshConnection().catch(() => {})}><RefreshCw size={13} /> Retry</button></div>}
     <div className="section-title-row"><div><h3>Live workspace</h3><p>{schema ? `${schema.database}.${schema.schema} · ${schema.columns.length} columns available` : 'Waiting for the backend schema'}</p></div><button className="subtle-button" onClick={() => navigate('/ask')}>Open full analyst <ArrowRight size={14} /></button></div>
     {result && <LiquidCard animated={false} className="results-card overview-result"><div className="results-header"><div><div className="card-eyebrow">LATEST ANALYSIS · {result.status.toUpperCase()}</div><h3>{result.answer || result.question || result.explanation}</h3><p>{result.explanation}</p></div></div>{result.rows?.length ? <div className="table-scroll dynamic-result-table"><table><thead><tr>{result.columns.map((column) => <th key={column}>{column}</th>)}</tr></thead><tbody>{result.rows.map((row, rowIndex) => <tr key={rowIndex}>{result.columns.map((column, columnIndex) => <td key={`${column}-${rowIndex}`}>{formatValue(row[columnIndex])}</td>)}</tr>)}</tbody></table></div> : <div className="empty-result">No rows were returned for this question.</div>}<div className="result-meta">{result.query_id ? `Snowflake query ID: ${result.query_id}` : 'No Snowflake query was executed for this response.'}</div></LiquidCard>}
+    {result && <QueryVisualization result={result} />}
     {!result && <div className="ask-empty compact"><Sparkles size={22} /><h3>Your live results will appear here</h3><p>Use one of the suggestions or ask your own question. Nothing on this dashboard is fabricated.</p></div>}
   </div>;
 }
