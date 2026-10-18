@@ -1,7 +1,7 @@
 import React from 'react';
 import { Navigate, Outlet, Route, Routes, useLocation } from 'react-router-dom';
 import { useAuth } from './context/AuthContext.jsx';
-import { LiquidCursor, LiquidDefs } from './components/liquid.jsx';
+import { LiquidDefs } from './components/liquid.jsx';
 import AppLayout from './layouts/AppLayout.jsx';
 import Login from './pages/Login.jsx';
 import Overview from './pages/Overview.jsx';
@@ -18,7 +18,7 @@ function RequireAuth() {
 export default function App() {
   const { user } = useAuth();
   return <>
-    <LiquidDefs /><LiquidCursor />
+    <LiquidDefs />
     <Routes>
       <Route path="/login" element={user ? <Navigate to="/" replace /> : <Login />} />
       <Route element={<RequireAuth />}>

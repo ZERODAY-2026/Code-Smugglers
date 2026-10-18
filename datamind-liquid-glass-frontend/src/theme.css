@@ -5,7 +5,6 @@ body{color:var(--text);transition:background-color .4s}
 :root[data-theme=light] .liquid-bg{opacity:.3}:root[data-theme=light] .ambient{opacity:.2}
 :root[data-theme=light] .glass-card{box-shadow:inset 0 1px rgba(255,255,255,.9),0 10px 34px rgba(60,70,20,.1)}
 :root[data-theme=light] .sidebar{background:rgba(255,255,255,.7);border-right-color:rgba(var(--fg),.08)}
-:root[data-theme=light] .liquid-cursor{border-color:rgba(var(--fg),.25);box-shadow:inset 0 1px 2px #fff,0 6px 20px rgba(60,70,20,.18)}
 :root[data-theme=light] .live-tile strong,:root[data-theme=light] .live-total{color:var(--text)}
 ::view-transition-old(root),::view-transition-new(root){animation:none;mix-blend-mode:normal}::view-transition-new(root){z-index:2}::view-transition-old(root){z-index:1}
 .theme-toggle{overflow:hidden}

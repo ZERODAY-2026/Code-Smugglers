@@ -17,18 +17,6 @@ export function LiquidDefs() {
   </>);
 }
 
-export function LiquidCursor() {
-  const x = useMotionValue(-100), y = useMotionValue(-100);
-  const sx = useSpring(x, { stiffness: 170, damping: 19, mass: .6 }), sy = useSpring(y, { stiffness: 170, damping: 19, mass: .6 });
-  const [big, setBig] = useState(false);
-  useEffect(() => {
-    const m = (e) => { x.set(e.clientX - 23); y.set(e.clientY - 23); setBig(!!e.target.closest?.('button,a,input,.glass-card')); };
-    window.addEventListener('pointermove', m);
-    return () => window.removeEventListener('pointermove', m);
-  }, []);
-  return <motion.div className="liquid-cursor" style={{ x: sx, y: sy }} animate={{ scale: big ? 1.8 : 1 }} transition={{ type: 'spring', stiffness: 260, damping: 18 }} />;
-}
-
 export function LiquidCard({ children, className = '', ...p }) {
   const ref = useRef(null);
   const rx = useSpring(0, { stiffness: 200, damping: 18 }), ry = useSpring(0, { stiffness: 200, damping: 18 });
