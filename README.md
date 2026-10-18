@@ -56,15 +56,19 @@ schema-aware `POST /api/query` flow. Gemma must propose a query or request
 clarification; the backend will validate and execute only approved SQL and
 return actual Snowflake evidence.
 
-The planner must expose a function matching
+The included Google AI Studio planner exposes a function matching
 [`backend/planner_contract.py`](D:/Projects/Hackobter/datamind/backend/planner_contract.py)
-and configure its module path in `.env`:
+and uses the official `google-genai` SDK. Configure it in `.env`:
 
 ```dotenv
-GEMMA_PLANNER_MODULE=your_planner_module
+GEMMA_PLANNER_MODULE=backend.gemma_planner
 GEMMA_PLANNER_FUNCTION=plan_query
+GEMMA_MODEL=gemma-3-27b-it
+GOOGLE_GENAI_API_KEY=your_google_ai_studio_key
 ```
 
+Create the API key at [Google AI Studio](https://aistudio.google.com/apikey).
+Never paste it into chat, source code, or Git. The `.env` file is ignored.
 Until this is configured, `POST /api/query` returns `503` rather than
 pretending that Gemma ran or inventing a result.
 
