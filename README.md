@@ -68,7 +68,7 @@ and uses the official `google-genai` SDK. Configure it in `.env`:
 ```dotenv
 GEMMA_PLANNER_MODULE=backend.gemma_planner
 GEMMA_PLANNER_FUNCTION=plan_query
-GEMMA_MODEL=gemma-3-27b-it
+GEMMA_MODEL=gemma-4-31b-it
 GOOGLE_GENAI_API_KEY=your_google_ai_studio_key
 ```
 
