@@ -17,7 +17,7 @@ export function LiquidDefs() {
   </>);
 }
 
-export function LiquidCard({ children, className = '', ...p }) {
+export function LiquidCard({ children, className = '', animated = true, ...p }) {
   const ref = useRef(null);
   const rx = useSpring(0, { stiffness: 200, damping: 18 }), ry = useSpring(0, { stiffness: 200, damping: 18 });
   const move = (e) => {
@@ -25,6 +25,7 @@ export function LiquidCard({ children, className = '', ...p }) {
     ry.set((px - .5) * 6); rx.set(-(py - .5) * 6);
     ref.current.style.setProperty('--mx', px * 100 + '%'); ref.current.style.setProperty('--my', py * 100 + '%');
   };
+  if (!animated) return <section className={`glass-card ${className}`} {...p}>{children}</section>;
   return <motion.section ref={ref} onPointerMove={move} onPointerLeave={() => { rx.set(0); ry.set(0); }}
     style={{ rotateX: rx, rotateY: ry, transformPerspective: 900 }} whileHover={{ y: -3, scale: 1.006 }}
     transition={{ type: 'spring', stiffness: 300, damping: 22 }} className={`glass-card ${className}`} {...p}>{children}</motion.section>;

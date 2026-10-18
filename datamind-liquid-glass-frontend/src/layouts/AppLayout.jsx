@@ -36,6 +36,7 @@ export default function AppLayout() {
     { label: 'Data sources', icon: Database, path: '/sources' }
   ];
   const activeNav = (navItems.find((n) => n.path === location.pathname) || navItems[0]).label;
+  const staticPage = ['/ask', '/live', '/history', '/sources'].includes(location.pathname);
 
   return (
     <div className="app-shell">
@@ -63,7 +64,7 @@ export default function AppLayout() {
           <div className="topbar-actions"><div className="connection-pill"><span className={`status-dot ${connected ? '' : 'offline-dot'}`} /> {connected ? 'Backend connected' : 'Backend offline'}</div><ThemeToggle /><button className="icon-button notification-button" aria-label="Notifications" onClick={() => setNotice(connected ? 'DataMind is connected to live schema evidence.' : 'Start the backend to connect DataMind.')}><Bell size={17} /><i /></button><button className="help-button" onClick={() => setNotice('Ask DataMind questions in plain English. Every result is computed by Snowflake and shown with evidence.')}><CircleHelp size={16} /><span>Help</span></button></div>
         </motion.header>
 
-        <AnimatePresence mode="wait"><motion.div key={location.pathname} className="route-wrap" initial={{ opacity: 0, filter: 'blur(14px)', y: 14 }} animate={{ opacity: 1, filter: 'blur(0px)', y: 0 }} exit={{ opacity: 0, filter: 'blur(14px)', y: -10 }} transition={{ duration: .35 }}>{outlet}</motion.div></AnimatePresence>
+        {staticPage ? <div className="route-wrap">{outlet}</div> : <AnimatePresence mode="wait"><motion.div key={location.pathname} className="route-wrap" initial={{ opacity: 0, filter: 'blur(14px)', y: 14 }} animate={{ opacity: 1, filter: 'blur(0px)', y: 0 }} exit={{ opacity: 0, filter: 'blur(14px)', y: -10 }} transition={{ duration: .35 }}>{outlet}</motion.div></AnimatePresence>}
       </main>
 
       <AnimatePresence>{notice && <motion.div className="toast" initial={{ opacity: 0, y: 15, scale: .98 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 10 }}><span className="toast-icon"><Check size={15} /></span><span>{notice}</span><button onClick={() => setNotice('')} aria-label="Dismiss"><X size={14} /></button></motion.div>}</AnimatePresence>
@@ -71,4 +72,3 @@ export default function AppLayout() {
     </div>
   );
 }
-
