@@ -1,6 +1,8 @@
 
+import importlib
 import os
 from pathlib import Path
+from typing import Any
 
 import sqlglot
 from sqlglot import exp
@@ -8,6 +10,7 @@ from sqlglot import exp
 import snowflake.connector
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
+from pydantic import BaseModel, Field
 
 load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 
@@ -36,6 +39,8 @@ ALLOWED_OBJECTS = {
         "BANK_MARKETING",
     ): {"BANK_MARKETING"},
 }
+MAX_QUESTION_LENGTH = 2000
+MAX_RESULT_ROWS = 500
 
 
 def validate_sql(sql: str) -> str:
@@ -132,6 +137,79 @@ def quote_identifier(identifier: str) -> str:
         raise ValueError("Snowflake identifiers cannot be empty.")
 
     return '"' + identifier.replace('"', '""') + '"'
+
+
+class QueryRequest(BaseModel):
+    question: str = Field(min_length=1, max_length=MAX_QUESTION_LENGTH)
+
+
+class QueryPlan(BaseModel):
+    sql: str | None = None
+    clarification_required: bool = False
+    clarification_question: str | None = None
+    explanation: str = ""
+    assumptions: list[str] = Field(default_factory=list)
+    warnings: list[str] = Field(default_factory=list)
+
+
+def get_query_plan(
+    question: str,
+    schema_context: list[dict[str, str]],
+) -> QueryPlan:
+    """Call the configured Gemma planner without a fabricated fallback."""
+
+    module_name = os.getenv("GEMMA_PLANNER_MODULE", "").strip()
+    function_name = os.getenv("GEMMA_PLANNER_FUNCTION", "plan_query").strip()
+
+    if not module_name:
+        raise RuntimeError(
+            "Gemma planner is not configured. Set GEMMA_PLANNER_MODULE "
+            "and GEMMA_PLANNER_FUNCTION."
+        )
+
+    try:
+        module = importlib.import_module(module_name)
+        planner = getattr(module, function_name)
+    except (ImportError, AttributeError) as exc:
+        raise RuntimeError("Configured Gemma planner could not be loaded.") from exc
+
+    try:
+        result: Any = planner(
+            question=question,
+            schema_context=schema_context,
+        )
+        return QueryPlan.model_validate(result)
+    except Exception as exc:
+        raise RuntimeError("Gemma planner returned an invalid plan.") from exc
+
+
+def execute_query(sql: str) -> dict[str, Any]:
+    """Execute approved SQL and return only evidence returned by Snowflake."""
+
+    connection = None
+    try:
+        connection = get_connection()
+        with connection.cursor() as cursor:
+            cursor.execute(sql)
+            columns = [item[0] for item in cursor.description or []]
+            rows = cursor.fetchmany(MAX_RESULT_ROWS + 1)
+            query_id = cursor.sfqid
+
+        truncated = len(rows) > MAX_RESULT_ROWS
+        rows = rows[:MAX_RESULT_ROWS]
+        return {
+            "columns": columns,
+            "rows": [list(row) for row in rows],
+            "warnings": (
+                [f"Results were limited to {MAX_RESULT_ROWS} rows."]
+                if truncated
+                else []
+            ),
+            "query_id": query_id,
+        }
+    finally:
+        if connection is not None:
+            connection.close()
 
 
 @app.get("/")
@@ -349,3 +427,78 @@ def test_validator():
             })
 
     return {"status": "ok", "results": results}
+
+
+@app.post("/api/query")
+def query_data(request: QueryRequest):
+    """Plan, validate, execute, and package an evidence-backed query."""
+
+    question = request.question.strip()
+    if not question:
+        raise HTTPException(
+            status_code=400,
+            detail="Please enter a data question.",
+        )
+
+    try:
+        schema = discover_schema()
+        plan = get_query_plan(question, schema["columns"])
+    except HTTPException:
+        raise
+    except RuntimeError as exc:
+        print(f"Query planner error: {exc}")
+        raise HTTPException(
+            status_code=503,
+            detail="The Gemma query planner is not available.",
+        ) from exc
+
+    if plan.clarification_required:
+        return {
+            "status": "clarification_required",
+            "question": plan.clarification_question
+            or "Please clarify your data question.",
+            "sql": None,
+            "columns": [],
+            "rows": [],
+            "explanation": plan.explanation,
+            "assumptions": plan.assumptions,
+            "warnings": plan.warnings,
+            "query_id": None,
+        }
+
+    if not plan.sql or not plan.sql.strip():
+        raise HTTPException(
+            status_code=422,
+            detail="The Gemma planner did not provide a query.",
+        )
+
+    try:
+        approved_sql = validate_sql(plan.sql)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    try:
+        evidence = execute_query(approved_sql)
+    except Exception as exc:
+        print(f"Snowflake query error: {type(exc).__name__}: {exc}")
+        raise HTTPException(
+            status_code=503,
+            detail="The approved query could not be completed in Snowflake.",
+        ) from exc
+
+    status = "empty" if not evidence["rows"] else "ok"
+    return {
+        "status": status,
+        "answer": (
+            "Snowflake returned no matching rows."
+            if status == "empty"
+            else "Results were computed from the returned Snowflake rows."
+        ),
+        "sql": approved_sql,
+        "columns": evidence["columns"],
+        "rows": evidence["rows"],
+        "explanation": plan.explanation,
+        "assumptions": plan.assumptions,
+        "warnings": plan.warnings + evidence["warnings"],
+        "query_id": evidence["query_id"],
+    }

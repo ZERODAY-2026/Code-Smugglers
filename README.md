@@ -11,11 +11,13 @@ The backend currently provides:
 - `GET /health` - service health check.
 - `GET /api/test-snowflake` - verifies the configured Snowflake connection.
 - `GET /api/test-query` - executes a real sample query against TPC-H data.
-- `GET /api/schema` - discovers the allowlisted TPC-H tables and columns.
+- `GET /api/schema` - discovers the configured allowlisted tables and columns.
 - `GET /api/test-validator` - exercises the SQL safety policy.
+- `POST /api/query` - calls the configured Gemma planner, validates its SQL,
+  executes it in Snowflake, and returns actual rows as evidence.
 
 The SQL policy only permits one read-only query against fully qualified tables
-in `SNOWFLAKE_SAMPLE_DATA.TPCH_SF1`:
+in the approved TPC-H schema or Bank Marketing table:
 
 ```text
 SNOWFLAKE_SAMPLE_DATA.TPCH_SF1.CUSTOMER
@@ -26,6 +28,7 @@ SNOWFLAKE_SAMPLE_DATA.TPCH_SF1.PARTSUPP
 SNOWFLAKE_SAMPLE_DATA.TPCH_SF1.SUPPLIER
 SNOWFLAKE_SAMPLE_DATA.TPCH_SF1.NATION
 SNOWFLAKE_SAMPLE_DATA.TPCH_SF1.REGION
+DATAMIND.BANK_MARKETING.BANK_MARKETING
 ```
 
 ## Local setup
@@ -52,6 +55,18 @@ The next integration step is to connect the team's Gemma planner to a
 schema-aware `POST /api/query` flow. Gemma must propose a query or request
 clarification; the backend will validate and execute only approved SQL and
 return actual Snowflake evidence.
+
+The planner must expose a function matching
+[`backend/planner_contract.py`](D:/Projects/Hackobter/datamind/backend/planner_contract.py)
+and configure its module path in `.env`:
+
+```dotenv
+GEMMA_PLANNER_MODULE=your_planner_module
+GEMMA_PLANNER_FUNCTION=plan_query
+```
+
+Until this is configured, `POST /api/query` returns `503` rather than
+pretending that Gemma ran or inventing a result.
 
 ## Bank Marketing demo dataset
 
