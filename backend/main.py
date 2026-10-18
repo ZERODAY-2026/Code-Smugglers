@@ -2,7 +2,7 @@
 import importlib
 import os
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 import sqlglot
 from sqlglot import exp
@@ -126,6 +126,7 @@ class QueryRequest(BaseModel):
 
 
 class QueryPlan(BaseModel):
+    status: Literal["ok", "clarification_required", "unsupported"] = "ok"
     sql: str | None = None
     clarification_required: bool = False
     clarification_question: str | None = None
@@ -431,7 +432,21 @@ def query_data(request: QueryRequest):
             detail="The Gemma query planner is not available.",
         ) from exc
 
-    if plan.clarification_required:
+    if plan.status == "unsupported":
+        return {
+            "status": "unsupported",
+            "question": plan.clarification_question
+            or "This question cannot be answered from the active dataset.",
+            "sql": None,
+            "columns": [],
+            "rows": [],
+            "explanation": plan.explanation,
+            "assumptions": plan.assumptions,
+            "warnings": plan.warnings,
+            "query_id": None,
+        }
+
+    if plan.clarification_required or plan.status == "clarification_required":
         return {
             "status": "clarification_required",
             "question": plan.clarification_question

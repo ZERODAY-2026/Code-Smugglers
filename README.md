@@ -61,16 +61,28 @@ It controls the active Snowflake connection, schema discovery, SQL allowlist,
 and dataset context supplied to Gemma. Adding another dataset means adding a
 registry entry rather than changing the query endpoint.
 
-The included Google AI Studio planner exposes a function matching
+The integrated Person 1 planner exposes a function matching
 [`backend/planner_contract.py`](D:/Projects/Hackobter/datamind/backend/planner_contract.py)
-and uses the official `google-genai` SDK. Configure it in `.env`:
+through [`backend/person1_adapter.py`](D:/Projects/Hackobter/datamind/backend/person1_adapter.py).
+It applies Person 1's strict JSON contract, schema-reference checks, repair
+logic, retries, caching, and token-level SQL sanity checks. The final
+Snowflake AST allowlist in `backend/main.py` remains authoritative. For
+Google AI Studio, the adapter uses the official `google-genai` SDK because
+that is the verified transport for the selected Gemma model:
+
+Configure it in `.env`:
 
 ```dotenv
-GEMMA_PLANNER_MODULE=backend.gemma_planner
+GEMMA_PLANNER_MODULE=backend.person1_adapter
 GEMMA_PLANNER_FUNCTION=plan_query
 GEMMA_MODEL=gemma-4-31b-it
 GOOGLE_GENAI_API_KEY=your_google_ai_studio_key
+GEMMA_PROVIDER=google_genai
 ```
+
+The alternate Person 1 OpenAI-compatible transport remains available by
+setting `GEMMA_PROVIDER=openai_compatible`, `GEMMA_MODEL`, and
+`GEMMA_BASE_URL`.
 
 Create the API key at [Google AI Studio](https://aistudio.google.com/apikey).
 Never paste it into chat, source code, or Git. The `.env` file is ignored.

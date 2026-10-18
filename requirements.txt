@@ -7,3 +7,4 @@ pydantic
 google-genai
 pytest
 ucimlrepo
+httpx>=0.27,<1
